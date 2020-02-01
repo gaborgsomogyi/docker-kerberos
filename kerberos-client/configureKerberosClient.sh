@@ -16,16 +16,13 @@ function kadminCommand {
 echo "==================================================================================="
 echo "==== /etc/krb5.conf ==============================================================="
 echo "==================================================================================="
-tee /etc/krb5.conf <<EOF
-[libdefaults]
-	default_realm = $REALM
+cp /share/krb5.conf /etc
+echo ""
 
-[realms]
-	$REALM = {
-		kdc = kdc-kadmin
-		admin_server = kdc-kadmin
-	}
-EOF
+echo "==================================================================================="
+echo "==== IP address ==================================================================="
+echo "==================================================================================="
+echo $(cat /share/database.ip) $REALM >> /etc/hosts
 echo ""
 
 echo "==================================================================================="
@@ -37,3 +34,4 @@ until kadminCommand "list_principals $KADMIN_PRINCIPAL_FULL"; do
 done
 echo "KDC and Kadmin are operational"
 echo ""
+bash

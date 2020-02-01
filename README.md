@@ -1,33 +1,137 @@
 # Docker-kerberos
-A docker image that creates the simplest Kerberos KDC and a docker image that is a kerberos client.
+I've modified the original project to simulate database server kerberos authentication.
 
-# What you get
+## General
+```
+git clone https://github.com/gaborgsomogyi/docker-kerberos.git
+cd docker-kerberos
 
- - A KDC for your desired realm.
- - The `kadmin/admin` principal with every permission.
- - The `noPermissions` principal with no permissions. Useful for testing applications that use kerberos principals.
- - The function `kadminCommand` which performs kadmin commands using the `kadmin/admin` principal.
+# Docker need couple of jars
+cd pgjdbc-kerberos/
+mvn clean install
+cd -
 
-## Running
-Just run `docker-compose up` on the root directory of this repo.
+cd mysql-kerberos/
+mvn clean install
+cd -
 
-## How to customize (eg. change the REALM)
+cd mariadb-kerberos/
+mvn clean install
+cd -
 
- 1. Change the file `kerberos.env`. This way the properties will be shared between the kdc and the kerberos client.
- 1. Define environment variables in `docker-compose.yml`. You will need to define them for each service that uses kerberos.
+cd db2-kerberos/
+mvn clean install
+cd -
 
-## Sugested usage of this repo
-This repository has designed to bootstrap the creation of a KDC for projects that need a Kerberos installation to perform tests.
+cd mssql-kerberos/
+mvn clean install
+cd -
 
-For example: you have a project that uses kerberos principals and you need to test it against a working Kerberos installation.
-You will need to create in your project repository the necessary files to setup a Kerberos. To bootstrap that process you
-can simply copy this repository files to your project and them modify them so that you can test your
-application inside the kerberos-client container.
+cd oracle-kerberos/
+mvn clean install
+cd -
 
-If you want to keep up with the possible changes of this repo, you can use:
- - [git submodules](https://medium.com/@porteneuve/mastering-git-submodules-34c65e940407#.a2hp3b6wa)
- - [git fake submodules](http://debuggable.com/posts/git-fake-submodules:4b563ee4-f3cc-4061-967e-0e48cbdd56cb)
- - [git subtrees](https://medium.com/@porteneuve/mastering-git-subtrees-943d29a798ec#.zcxs92mvl)
+docker-compose build
+```
 
-## License
-docker-kerberos is open source and available under the [MIT license](LICENSE).
+## KDC
+```
+./run-kdc-kadmin.sh
+```
+
+## Postgres
+```
+./run-postgres.sh
+```
+
+```
+./run-kerberos-client.sh postgres
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/postgres.keytab postgres/example.com@EXAMPLE.COM
+psql -U postgres/example.com@EXAMPLE.COM -h example.com postgres
+```
+
+```
+./run-kerberos-client.sh postgres
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/postgres.keytab postgres/example.com@EXAMPLE.COM
+java -jar /tmp/pgjdbc-kerberos-1.0-SNAPSHOT-jar-with-dependencies.jar share/postgres.keytab postgres/example.com@EXAMPLE.COM "jdbc:postgresql://example.com/postgres?user=postgres/example.com@EXAMPLE.COM&gsslib=gssapi"
+```
+
+## MySQL
+```
+docker login container-registry.oracle.com
+./run-mysql.sh
+```
+
+```
+./run-kerberos-client.sh mysql
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/mysql.keytab mysql/example.com@EXAMPLE.COM
+// No GSSAPI plugin so failing
+java -jar /tmp/mysql-kerberos-1.0-SNAPSHOT-jar-with-dependencies.jar share/mysql.keytab mysql/example.com@EXAMPLE.COM "jdbc:mysql://example.com/mysql?user=mysql/example.com@EXAMPLE.COM"
+```
+
+## MariaDB
+```
+./run-mariadb.sh
+```
+
+```
+./run-kerberos-client.sh mariadb
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/mariadb.keytab mariadb/example.com@EXAMPLE.COM
+java -jar /tmp/mariadb-kerberos-1.0-SNAPSHOT-jar-with-dependencies.jar share/mariadb.keytab mariadb/example.com@EXAMPLE.COM "jdbc:mariadb://example.com/mysql?user=mariadb/example.com@EXAMPLE.COM"
+```
+
+## DB2
+```
+./run-db2.sh
+```
+
+```
+./run-kerberos-client.sh db2
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/db2.keytab db2/example.com@EXAMPLE.COM
+java -jar /tmp/db2-kerberos-1.0-SNAPSHOT-jar-with-dependencies.jar share/db2.keytab db2/example.com@EXAMPLE.COM "jdbc:db2://example.com:50000/db2"
+```
+
+## MSSQL
+```
+./run-mssql.sh
+```
+
+```
+./run-kerberos-client.sh mssql
+sqlcmd -S example.com -U sa -P Mssql123
+```
+
+```
+./run-kerberos-client.sh mssql
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/mssql.keytab mssql/example.com@EXAMPLE.COM
+// The login is from an untrusted domain and cannot be used with Integrated authentication.
+java -jar /tmp/mssql-kerberos-1.0-SNAPSHOT-jar-with-dependencies.jar share/mssql.keytab mssql/example.com@EXAMPLE.COM "jdbc:sqlserver://example.com;integratedSecurity=true;authenticationScheme=JavaKerberos;userName=mssql/example.com@EXAMPLE.COM"
+```
+
+## Oracle
+```
+docker login container-registry.oracle.com
+./run-oracle.sh
+```
+
+```
+./run-kerberos-client.sh oracle
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/oracle.keytab oracle/example.com@EXAMPLE.COM
+// ORA-01017: invalid username/password; logon denied
+sqlplus '/@(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=example.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCLCDB.localdomain)))'
+```
+
+```
+./run-kerberos-client.sh oracle
+export KRB5_TRACE=/dev/stdout
+kinit -kt /share/oracle.keytab oracle/example.com@EXAMPLE.COM
+// ORA-01017: invalid username/password; logon denied
+java -jar /tmp/oracle-kerberos-1.0-SNAPSHOT-jar-with-dependencies.jar share/oracle.keytab oracle/example.com@EXAMPLE.COM "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=example.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCLCDB.localdomain)))"
+```

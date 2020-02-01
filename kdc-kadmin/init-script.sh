@@ -12,19 +12,21 @@ echo ""
 echo "==================================================================================="
 echo "==== /etc/krb5.conf ==============================================================="
 echo "==================================================================================="
-KDC_KADMIN_SERVER=$(hostname -f)
+KDC_KADMIN_SERVER=$(hostname -I)
 tee /etc/krb5.conf <<EOF
 [libdefaults]
 	default_realm = $REALM
+	forwardable = true
 
 [realms]
 	$REALM = {
-		kdc_ports = 88,750
+		kdc_ports = 88
 		kadmind_port = 749
 		kdc = $KDC_KADMIN_SERVER
 		admin_server = $KDC_KADMIN_SERVER
 	}
 EOF
+cp /etc/krb5.conf /share
 echo ""
 
 echo "==================================================================================="
@@ -32,12 +34,18 @@ echo "==== /etc/krb5kdc/kdc.conf ===============================================
 echo "==================================================================================="
 tee /etc/krb5kdc/kdc.conf <<EOF
 [realms]
-	$REALM = {
-		acl_file = /etc/krb5kdc/kadm5.acl
-		max_renewable_life = 7d 0h 0m 0s
-		supported_enctypes = $SUPPORTED_ENCRYPTION_TYPES
-		default_principal_flags = +preauth
-	}
+  $REALM = {
+    acl_file = /etc/krb5kdc/kadm5.acl
+    max_renewable_life = 7d 0h 0m 0s
+    supported_enctypes = $SUPPORTED_ENCRYPTION_TYPES
+    default_principal_flags = +preauth
+  }
+[logging]
+  debug = true
+  kdc = CONSOLE
+  kdc = FILE:/var/log/kdc.log
+  admin_server = CONSOLE
+  admin_server = FILE:/var/log/kadmin.log
 EOF
 echo ""
 
@@ -76,13 +84,28 @@ echo ""
 kadmin.local -q "addprinc -pw $KADMIN_PASSWORD noPermissions@$REALM"
 echo ""
 
-echo "==================================================================================="
-echo "==== Run the services ============================================================="
-echo "==================================================================================="
-# We want the container to keep running until we explicitly kill it.
-# So the last command cannot immediately exit. See
-#   https://docs.docker.com/engine/reference/run/#detached-vs-foreground
-# for a better explanation.
+add_principal () {
+  CUSTOM_PRINCIPAL=$1
+  CUSTOM_KEYTAB=$2
+  echo "Adding $CUSTOM_PRINCIPAL principal"
+  kadmin.local -q "delete_principal -force $CUSTOM_PRINCIPAL@$REALM"
+  echo ""
+  kadmin.local -q "addprinc -pw $KADMIN_PASSWORD $CUSTOM_PRINCIPAL@$REALM"
+  echo ""
+  if [[ -n $CUSTOM_KEYTAB ]]; then
+    CUSTOM_KEYTAB_PATH=/share/$CUSTOM_KEYTAB
+    rm -f $CUSTOM_KEYTAB_PATH
+    kadmin.local -q "xst -k $CUSTOM_KEYTAB_PATH $CUSTOM_PRINCIPAL@$REALM"
+    chmod 666 $CUSTOM_KEYTAB_PATH
+    echo ""
+  fi
+}
+add_principal postgres/example.com postgres.keytab
+add_principal mysql/example.com mysql.keytab
+add_principal mariadb/example.com mariadb.keytab
+add_principal db2/example.com db2.keytab
+add_principal MSSQLSvc/example.com:1433
+add_principal mssql/example.com mssql.keytab
+add_principal oracle/example.com oracle.keytab
 
-krb5kdc
-kadmind -nofork
+while true; do sleep infinity; done

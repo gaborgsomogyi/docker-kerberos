@@ -1,4 +1,4 @@
-version: "2"
+version: "3.7"
 services:
   # This service MUST have the name "kdc-kadmin" otherwise every kerberos client won't be able to talk with the KDC.
   # If you would like to change the name edit the file configureKerberosClient.sh and change the configurations
@@ -15,6 +15,15 @@ services:
     env_file: kerberos.env
     depends_on:
       - kdc-kadmin
+
+  mysql-server:
+    build: ./mysql-server
+
+  mariadb-server:
+    build: ./mariadb-server
+
+  oracle-server:
+    build: ./oracle-server
 
 # NOTE:
 #  "env_file: kerberos.env" is optional.
